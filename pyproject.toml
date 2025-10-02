@@ -1,0 +1,68 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "youtube-chat-downloader"
+version = "0.1.0"
+description = "A tool to download YouTube live chat history and store in database"
+readme = "README.md"
+authors = [
+    { name = "Your Name", email = "your.email@example.com" }
+]
+license = { file = "LICENSE" }
+requires-python = ">=3.9"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+dependencies = [
+    "yt-dlp>=2023.12.30",
+    "chat-downloader>=0.2.7",
+    "pandas>=2.0.0",
+    "click>=8.1.7",
+    "rich>=13.7.0",
+    "sqlalchemy>=2.0.0",
+    "alembic>=1.13.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "black>=23.0.0",
+    "flake8>=6.0.0",
+    "mypy>=1.5.0",
+    "pre-commit>=3.4.0",
+    "pytest-cov>=4.1.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/litong-2017/youtube-chat-downloader"
+Repository = "https://github.com/litong-2017/youtube-chat-downloader"
+Documentation = "https://github.com/litong-2017/youtube-chat-downloader#readme"
+
+[project.scripts]
+ytchat = "youtube_chat_downloader.cli.commands:cli"
+
+[tool.black]
+line-length = 88
+target-version = ['py39']
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
