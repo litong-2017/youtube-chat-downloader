@@ -57,6 +57,7 @@ python -m youtube_chat_downloader.cli.commands download @channel \
     [--json-dir PATH] \
     [--search-mode] \
     [--skip-existing / --no-skip-existing] \
+    [--stop-on-existing / --no-stop-on-existing] \
     [--start-date YYYY-MM-DD] \
     [--end-date YYYY-MM-DD] \
     [--start-index N] \
@@ -233,6 +234,8 @@ Override with `--db-path` flag on CLI commands
 ### Incremental Download
 - `--skip-existing` flag (default: True) checks database for existing messages
 - `--no-skip-existing` to force re-download
+- `--stop-on-existing` (default: True) stops entirely when encountering first already-downloaded video (useful for incremental updates since videos are processed newest-first)
+- `--no-stop-on-existing` to continue processing all videos even if some are already downloaded
 - Significantly reduces redundant downloads
 
 ### Date Range Filtering

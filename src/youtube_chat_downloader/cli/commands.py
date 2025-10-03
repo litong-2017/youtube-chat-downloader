@@ -23,12 +23,13 @@ def cli():
 @click.option('--json-dir', '-j', default='data/json_exports', help='Directory to save JSON exports')
 @click.option('--search-mode', '-s', is_flag=True, help='Use search mode to find videos')
 @click.option('--skip-existing/--no-skip-existing', default=True, help='Skip already downloaded videos (incremental mode)')
+@click.option('--stop-on-existing/--no-stop-on-existing', default=True, help='Stop when encountering first already-downloaded video (default: enabled)')
 @click.option('--start-date', help='Start date for video range (YYYY-MM-DD)')
 @click.option('--end-date', help='End date for video range (YYYY-MM-DD)')
 @click.option('--start-index', type=int, default=0, help='Start index in video list (0-based)')
 @click.option('--end-index', type=int, help='End index in video list (exclusive)')
 def download(channel_id: str, max_videos: int, db_path: str, json_dir: str, search_mode: bool,
-             skip_existing: bool, start_date: str, end_date: str,
+             skip_existing: bool, stop_on_existing: bool, start_date: str, end_date: str,
              start_index: int, end_index: int):
     """Download chat history for a YouTube channel.
 
@@ -38,6 +39,7 @@ def download(channel_id: str, max_videos: int, db_path: str, json_dir: str, sear
         ytchat download @channelname --start-date 2024-01-01 --end-date 2024-12-31
         ytchat download @channelname --start-index 0 --end-index 50
         ytchat download @channelname --no-skip-existing  # Re-download all videos
+        ytchat download @channelname --no-stop-on-existing  # Continue processing all videos instead of stopping
         ytchat download @channelname --json-dir custom/path  # Custom JSON export directory
     """
     downloader = YouTubeChatDownloader(db_path, json_output_dir=json_dir)
@@ -60,7 +62,9 @@ def download(channel_id: str, max_videos: int, db_path: str, json_dir: str, sear
         console.print(f"[cyan]Date range: {start_date or 'beginning'} to {end_date or 'now'}[/cyan]")
     if end_index is not None:
         console.print(f"[cyan]Index range: {start_index} to {end_index}[/cyan]")
-    if skip_existing:
+    if stop_on_existing:
+        console.print("[cyan]Stop-on-existing mode: Will stop at first already-downloaded video[/cyan]")
+    elif skip_existing:
         console.print("[cyan]Incremental mode: Skipping already downloaded videos[/cyan]")
 
     downloader.download_channel_chat_history(
@@ -70,7 +74,8 @@ def download(channel_id: str, max_videos: int, db_path: str, json_dir: str, sear
         start_date=start_date,
         end_date=end_date,
         start_index=start_index,
-        end_index=end_index
+        end_index=end_index,
+        stop_on_existing=stop_on_existing
     )
 
 

@@ -491,7 +491,8 @@ class YouTubeChatDownloader:
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
         start_index: int = 0,
-        end_index: Optional[int] = None
+        end_index: Optional[int] = None,
+        stop_on_existing: bool = True
     ) -> None:
         """Download chat history for an entire channel.
 
@@ -503,6 +504,7 @@ class YouTubeChatDownloader:
             end_date: Filter videos until this date (YYYY-MM-DD)
             start_index: Start processing from this index in video list
             end_index: Stop processing at this index in video list
+            stop_on_existing: Stop downloading when encountering first already-downloaded video (default: True)
         """
         console.print(f"[bold green]Starting download for channel: {channel_id}[/bold green]")
 
@@ -558,16 +560,22 @@ class YouTubeChatDownloader:
 
                 try:
                     # 检查是否已下载（增量模式）
-                    if skip_existing:
+                    if skip_existing or stop_on_existing:
                         with self.db_manager.get_session() as session:
                             existing = session.query(ChatMessage).filter_by(
                                 video_id=video_id
                             ).first()
                             if existing:
-                                console.print(f"[yellow]⏭️ Skipping {video_id} (already processed)[/yellow]")
-                                skipped += 1
-                                progress.advance(task)
-                                continue
+                                if stop_on_existing:
+                                    console.print(f"[yellow]🛑 Found already-downloaded video {video_id}, stopping...[/yellow]")
+                                    skipped += 1
+                                    progress.advance(task)
+                                    break  # 停止处理后续视频
+                                else:
+                                    console.print(f"[yellow]⏭️ Skipping {video_id} (already processed)[/yellow]")
+                                    skipped += 1
+                                    progress.advance(task)
+                                    continue
 
                     # 获取视频信息
                     video_info = self.get_video_info(video_id)
