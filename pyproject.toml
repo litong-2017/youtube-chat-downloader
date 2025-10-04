@@ -32,6 +32,8 @@ dependencies = [
     "sqlalchemy>=2.0.0",
     "alembic>=1.13.0",
     "python-dotenv>=1.0.0",
+    "duckdb>=0.9.0",
+    "duckdb-engine>=0.10.0",
 ]
 
 [project.optional-dependencies]

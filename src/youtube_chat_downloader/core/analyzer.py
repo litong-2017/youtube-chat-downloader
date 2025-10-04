@@ -13,9 +13,9 @@ logger = get_logger(__name__)
 
 class ChatAnalyzer:
     """Analyze chat data from the database."""
-    
-    def __init__(self, db_path: Optional[str] = None):
-        self.db_manager = DatabaseManager(db_path)
+
+    def __init__(self, db_path: Optional[str] = None, db_type: str = "sqlite"):
+        self.db_manager = DatabaseManager(db_path, db_type=db_type)
     
     def get_chat_by_video(self, video_id: str) -> pd.DataFrame:
         """Get chat messages for a specific video."""

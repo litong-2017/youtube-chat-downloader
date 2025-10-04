@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-YouTube Chat Downloader is a Python tool for downloading and analyzing YouTube live stream chat history. It uses yt-dlp for video metadata and chat-downloader for chat messages, storing everything in a SQLite database via SQLAlchemy.
+YouTube Chat Downloader is a Python tool for downloading and analyzing YouTube live stream chat history. It uses yt-dlp for video metadata and chat-downloader for chat messages, with support for both SQLite and DuckDB databases via SQLAlchemy. **By default, data is saved to JSON files only**, with optional database storage.
 
 ## Development Environment
 
@@ -50,11 +50,13 @@ python -m youtube_chat_downloader.cli.commands <command> [options]
 
 **Available commands:**
 ```bash
-# Download with all options
+# Download (default: JSON only, no database)
 python -m youtube_chat_downloader.cli.commands download @channel \
     [--max-videos N] \
     [--db-path PATH] \
+    [--db-type sqlite|duckdb] \
     [--json-dir PATH] \
+    [--save-to-db / --no-save-to-db] \
     [--search-mode] \
     [--skip-existing / --no-skip-existing] \
     [--stop-on-existing / --no-stop-on-existing] \
@@ -63,20 +65,31 @@ python -m youtube_chat_downloader.cli.commands download @channel \
     [--start-index N] \
     [--end-index N]
 
+# Import JSON to database
+python -m youtube_chat_downloader.cli.commands import-json FILE.json \
+    [--db-path PATH] \
+    [--db-type sqlite|duckdb]
+
 # Validate channel
-python -m youtube_chat_downloader.cli.commands validate @channel
+python -m youtube_chat_downloader.cli.commands validate @channel \
+    [--db-type sqlite|duckdb]
 
 # Analyze data
-python -m youtube_chat_downloader.cli.commands analyze [--db-path PATH]
+python -m youtube_chat_downloader.cli.commands analyze \
+    [--db-path PATH] \
+    [--db-type sqlite|duckdb]
 
 # Export to CSV
 python -m youtube_chat_downloader.cli.commands export \
     [--db-path PATH] \
+    [--db-type sqlite|duckdb] \
     [--video-id ID] \
     [--output FILE]
 
 # List videos in database
-python -m youtube_chat_downloader.cli.commands list-videos [--db-path PATH]
+python -m youtube_chat_downloader.cli.commands list-videos \
+    [--db-path PATH] \
+    [--db-type sqlite|duckdb]
 ```
 
 ### Testing
@@ -133,13 +146,20 @@ mypy src/
    - Default location: `data/json_exports/`
    - Provides backup and enables custom processing
 
-4. **Database Storage**: SQLAlchemy ORM stores data in SQLite
+4. **Database Storage** (OPTIONAL): SQLAlchemy ORM stores data in SQLite or DuckDB
+   - **Default behavior**: Data is saved to JSON only (no database)
+   - Use `--save-to-db` flag to enable database storage
+   - Supports both SQLite and DuckDB via `--db-type` parameter
    - Video table: extensive metadata including livestream details
    - ChatMessage table: individual messages with foreign key to video_id
    - Uses session.merge() for videos to handle duplicates
    - Handles IntegrityError for duplicate messages
 
-5. **Analysis**: ChatAnalyzer provides pandas DataFrames for queries
+5. **JSON Import**: Import previously downloaded JSON files to database
+   - Use `import-json` command to load JSON files into database
+   - Useful for selective database imports after batch JSON downloads
+
+6. **Analysis**: ChatAnalyzer provides pandas DataFrames for queries
    - Get chat by video, top chatters, statistics
    - Export to CSV with JOIN between videos and messages
 
@@ -147,27 +167,36 @@ mypy src/
 
 **videos table**:
 - video_id (PK): YouTube video ID
-- title, upload_date, duration, view_count
-- channel_id, channel_name, description
-- is_live, was_live: boolean flags
-- live_start_timestamp, live_end_timestamp, release_timestamp: timestamps
+- title, upload_date (indexed), duration, view_count (indexed)
+- channel_id (indexed), channel_name, description
+- is_live, was_live (indexed): boolean flags
+- live_start_timestamp (indexed), live_end_timestamp, release_timestamp: timestamps
 - thumbnail: URL to video thumbnail
 - categories, tags: JSON arrays
 - like_count, comment_count: engagement metrics
-- live_status, availability: video status
+- live_status (indexed), availability: video status
 - uploader, uploader_id: uploader information
 - created_at: timestamp
+
+**Indexes on videos table**:
+- `upload_date`, `channel_id`: Original indexes
+- `was_live`, `live_status`, `live_start_timestamp`, `view_count`: Additional indexes for query optimization
 
 **chat_messages table**:
 - id (PK, autoincrement)
 - video_id (indexed): references video
-- message_id (unique): chat message identifier
-- author_name, author_id, message
+- message_id (unique, indexed): chat message identifier
+- author_name (indexed), author_id (indexed), message
 - timestamp_usec (indexed): microsecond timestamp
-- message_type: text_message, superchat, etc.
+- message_type (indexed): text_message, superchat, etc.
 - superchat_amount, superchat_currency
 - badges: JSON string of author badges
 - created_at: timestamp
+
+**Composite indexes on chat_messages table**:
+- `(video_id, timestamp_usec)`: Optimized for fetching messages by video in chronological order
+- `(author_id, video_id)`: Optimized for querying user activity across videos
+- `(message_type, video_id)`: Optimized for filtering by message type (e.g., superchats)
 
 ### Channel ID Handling
 
@@ -190,10 +219,20 @@ When downloading, the code:
 - **Rich console output**: Color-coded status messages (green=success, yellow=warning, red=error)
 - **Logging**: Structured logging via utils/logger.py
 
-## Database Location
+## Database Support
 
-Default: `data/youtube_chat.db` (created automatically)
-Override with `--db-path` flag on CLI commands
+**Supported databases**:
+- **SQLite** (default): `data/youtube_chat.db`
+  - Optimized with WAL mode and NORMAL synchronous mode
+  - Suitable for most use cases
+- **DuckDB**: `data/youtube_chat.duckdb`
+  - Excellent for analytical queries
+  - Better performance on large datasets
+
+**Configuration**:
+- Use `--db-type sqlite` or `--db-type duckdb` to select database
+- Override default path with `--db-path` flag
+- All indexes are created automatically on initialization
 
 ## Important Notes
 
@@ -208,13 +247,24 @@ Override with `--db-path` flag on CLI commands
 
 ## Key Features Implemented
 
-### JSON Export Before Database (NEW)
-- All chat messages are saved to JSON files BEFORE database insertion
+### JSON-First Architecture (NEW)
+- **Default behavior**: Downloads save to JSON only (no database)
+- Use `--save-to-db` flag to enable database storage
+- JSON files serve as the primary data format
 - Filename format: `YYYYMMDD_videoID.json` (based on upload date)
 - Contains complete video metadata and all chat messages
 - Provides backup and enables custom data processing
 - Use `--json-dir PATH` to specify custom export directory
 - Default location: `data/json_exports/`
+
+### Flexible Database Backend (NEW)
+- Support for both SQLite and DuckDB
+- SQLite optimized with WAL mode and pragma settings
+- Comprehensive indexing strategy:
+  - Single-column indexes on frequently queried fields
+  - Composite indexes for common query patterns
+  - All indexes created automatically on database initialization
+- Use `--db-type` to switch between database backends
 
 ### Extended Video Metadata (NEW)
 - Stores comprehensive livestream information including:
@@ -230,6 +280,12 @@ Override with `--db-path` flag on CLI commands
 - Removed 10,000 message limit per video
 - Downloads ALL available chat messages
 - Suitable for very active livestream chats
+
+### JSON to Database Import (NEW)
+- New `import-json` command for importing JSON files to database
+- Checks for existing data before import
+- Supports batch processing of downloaded JSON files
+- Works with both SQLite and DuckDB
 
 ### Incremental Download
 - `--skip-existing` flag (default: True) checks database for existing messages
@@ -254,7 +310,49 @@ Override with `--db-path` flag on CLI commands
 3. Apply index range filter (if specified)
 4. Apply max-videos limit (if specified)
 5. Execute download with incremental check
-6. Save to JSON file first, then database
+6. Save to JSON file first, then optionally to database (if `--save-to-db` is specified)
+
+## Workflow Examples
+
+### Recommended Workflow: JSON-First
+
+```bash
+# Step 1: Download to JSON only (default)
+python -m youtube_chat_downloader.cli.commands download @channel --max-videos 100
+
+# Step 2: Inspect/process JSON files as needed
+# Files are in data/json_exports/YYYYMMDD_videoID.json
+
+# Step 3: Import selected JSON files to SQLite database
+python -m youtube_chat_downloader.cli.commands import-json data/json_exports/20251004_abc123.json
+
+# Step 4: Or import to DuckDB for analytics
+python -m youtube_chat_downloader.cli.commands import-json data/json_exports/20251004_abc123.json --db-type duckdb
+```
+
+### Alternative: Direct to Database
+
+```bash
+# Download directly to database (SQLite)
+python -m youtube_chat_downloader.cli.commands download @channel --save-to-db
+
+# Download directly to DuckDB
+python -m youtube_chat_downloader.cli.commands download @channel --save-to-db --db-type duckdb
+```
+
+### Database Selection Guide
+
+**Use SQLite when**:
+- General-purpose storage
+- ACID compliance is important
+- Moderate dataset sizes (< millions of messages)
+- Simple queries and exports
+
+**Use DuckDB when**:
+- Analytical workloads (aggregations, GROUP BY)
+- Large datasets (millions+ messages)
+- Complex queries with joins
+- Column-oriented operations
 
 ## Examples Directory
 

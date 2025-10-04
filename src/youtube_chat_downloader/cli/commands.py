@@ -19,7 +19,8 @@ def cli():
 @cli.command()
 @click.argument('channel_id')
 @click.option('--max-videos', '-m', type=int, help='Maximum number of videos to process')
-@click.option('--db-path', '-d', default='data/youtube_chat.db', help='Database file path')
+@click.option('--db-path', '-d', help='Database file path (default: data/youtube_chat.db or data/youtube_chat.duckdb)')
+@click.option('--db-type', type=click.Choice(['sqlite', 'duckdb'], case_sensitive=False), default='sqlite', help='Database type (default: sqlite)')
 @click.option('--json-dir', '-j', default='data/json_exports', help='Directory to save JSON exports')
 @click.option('--search-mode', '-s', is_flag=True, help='Use search mode to find videos')
 @click.option('--skip-existing/--no-skip-existing', default=True, help='Skip already downloaded videos (incremental mode)')
@@ -28,13 +29,16 @@ def cli():
 @click.option('--end-date', help='End date for video range (YYYY-MM-DD)')
 @click.option('--start-index', type=int, default=0, help='Start index in video list (0-based)')
 @click.option('--end-index', type=int, help='End index in video list (exclusive)')
-def download(channel_id: str, max_videos: int, db_path: str, json_dir: str, search_mode: bool,
+@click.option('--save-to-db/--no-save-to-db', default=False, help='Save to database (default: only save to JSON)')
+def download(channel_id: str, max_videos: int, db_path: str, db_type: str, json_dir: str, search_mode: bool,
              skip_existing: bool, stop_on_existing: bool, start_date: str, end_date: str,
-             start_index: int, end_index: int):
+             start_index: int, end_index: int, save_to_db: bool):
     """Download chat history for a YouTube channel.
 
     Examples:
-        ytchat download @channelname
+        ytchat download @channelname  # Default: only save to JSON
+        ytchat download @channelname --save-to-db  # Save to both JSON and SQLite database
+        ytchat download @channelname --save-to-db --db-type duckdb  # Save to DuckDB
         ytchat download @channelname --max-videos 10
         ytchat download @channelname --start-date 2024-01-01 --end-date 2024-12-31
         ytchat download @channelname --start-index 0 --end-index 50
@@ -42,7 +46,7 @@ def download(channel_id: str, max_videos: int, db_path: str, json_dir: str, sear
         ytchat download @channelname --no-stop-on-existing  # Continue processing all videos instead of stopping
         ytchat download @channelname --json-dir custom/path  # Custom JSON export directory
     """
-    downloader = YouTubeChatDownloader(db_path, json_output_dir=json_dir)
+    downloader = YouTubeChatDownloader(db_path, json_output_dir=json_dir, db_type=db_type)
 
     # 先验证频道是否存在
     console.print(f"[cyan]Validating channel: {channel_id}[/cyan]")
@@ -67,6 +71,11 @@ def download(channel_id: str, max_videos: int, db_path: str, json_dir: str, sear
     elif skip_existing:
         console.print("[cyan]Incremental mode: Skipping already downloaded videos[/cyan]")
 
+    if save_to_db:
+        console.print("[cyan]Saving to both JSON and database[/cyan]")
+    else:
+        console.print("[cyan]Saving to JSON only (use --save-to-db to also save to database)[/cyan]")
+
     downloader.download_channel_chat_history(
         channel_id=channel_id,
         max_videos=max_videos,
@@ -75,15 +84,17 @@ def download(channel_id: str, max_videos: int, db_path: str, json_dir: str, sear
         end_date=end_date,
         start_index=start_index,
         end_index=end_index,
-        stop_on_existing=stop_on_existing
+        stop_on_existing=stop_on_existing,
+        save_to_db=save_to_db
     )
 
 
 @cli.command()
 @click.argument('channel_id')
-def validate(channel_id: str):
+@click.option('--db-type', type=click.Choice(['sqlite', 'duckdb'], case_sensitive=False), default='sqlite', help='Database type (default: sqlite)')
+def validate(channel_id: str, db_type: str):
     """Validate if a YouTube channel exists and get its info."""
-    downloader = YouTubeChatDownloader()
+    downloader = YouTubeChatDownloader(db_type=db_type)
     
     console.print(f"[cyan]Validating channel: {channel_id}[/cyan]")
     channel_info = downloader._get_channel_info(channel_id.strip('@'))
@@ -125,10 +136,11 @@ def validate(channel_id: str):
 
 
 @cli.command()
-@click.option('--db-path', '-d', default='data/youtube_chat.db', help='Database file path')
-def analyze(db_path: str):
+@click.option('--db-path', '-d', help='Database file path (default: data/youtube_chat.db or data/youtube_chat.duckdb)')
+@click.option('--db-type', type=click.Choice(['sqlite', 'duckdb'], case_sensitive=False), default='sqlite', help='Database type (default: sqlite)')
+def analyze(db_path: str, db_type: str):
     """Analyze downloaded chat data and show statistics."""
-    analyzer = ChatAnalyzer(db_path)
+    analyzer = ChatAnalyzer(db_path, db_type=db_type)
 
     console.print("[bold cyan]Database Statistics[/bold cyan]\n")
 
@@ -175,12 +187,13 @@ def analyze(db_path: str):
 
 
 @cli.command()
-@click.option('--db-path', '-d', default='data/youtube_chat.db', help='Database file path')
+@click.option('--db-path', '-d', help='Database file path (default: data/youtube_chat.db or data/youtube_chat.duckdb)')
+@click.option('--db-type', type=click.Choice(['sqlite', 'duckdb'], case_sensitive=False), default='sqlite', help='Database type (default: sqlite)')
 @click.option('--video-id', '-v', help='Export specific video (leave empty for all)')
 @click.option('--output', '-o', default='chat_export.csv', help='Output CSV file path')
-def export(db_path: str, video_id: str, output: str):
+def export(db_path: str, db_type: str, video_id: str, output: str):
     """Export chat data to CSV format."""
-    analyzer = ChatAnalyzer(db_path)
+    analyzer = ChatAnalyzer(db_path, db_type=db_type)
 
     try:
         console.print(f"[cyan]Exporting data to {output}...[/cyan]")
@@ -191,14 +204,15 @@ def export(db_path: str, video_id: str, output: str):
 
 
 @cli.command()
-@click.option('--db-path', '-d', default='data/youtube_chat.db', help='Database file path')
-def list_videos(db_path: str):
+@click.option('--db-path', '-d', help='Database file path (default: data/youtube_chat.db or data/youtube_chat.duckdb)')
+@click.option('--db-type', type=click.Choice(['sqlite', 'duckdb'], case_sensitive=False), default='sqlite', help='Database type (default: sqlite)')
+def list_videos(db_path: str, db_type: str):
     """List all downloaded videos in the database."""
     from ..database.connection import DatabaseManager
     from ..database.models import Video, ChatMessage
     from sqlalchemy import func
 
-    db_manager = DatabaseManager(db_path)
+    db_manager = DatabaseManager(db_path, db_type=db_type)
 
     try:
         with db_manager.get_session() as session:
@@ -242,6 +256,67 @@ def list_videos(db_path: str):
 
     except Exception as e:
         console.print(f"[red]Error listing videos: {e}[/red]")
+
+
+@cli.command()
+@click.argument('json_path', type=click.Path(exists=True))
+@click.option('--db-path', '-d', help='Database file path (default: data/youtube_chat.db or data/youtube_chat.duckdb)')
+@click.option('--db-type', type=click.Choice(['sqlite', 'duckdb'], case_sensitive=False), default='sqlite', help='Database type (default: sqlite)')
+def import_json(json_path: str, db_path: str, db_type: str):
+    """Import chat data from JSON file to database.
+
+    Examples:
+        ytchat import-json data/json_exports/20251004_videoID.json
+        ytchat import-json data/json_exports/20251004_videoID.json --db-type duckdb
+        ytchat import-json data/json_exports/20251004_videoID.json --db-path custom.db
+    """
+    import json
+    from pathlib import Path
+
+    downloader = YouTubeChatDownloader(db_path, db_type=db_type)
+
+    try:
+        console.print(f"[cyan]Reading JSON file: {json_path}[/cyan]")
+
+        with open(json_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+
+        video_info = data.get('video_info')
+        chat_messages = data.get('chat_messages', [])
+        metadata = data.get('export_metadata', {})
+
+        if not video_info:
+            console.print("[red]Error: Invalid JSON format - missing video_info[/red]")
+            return
+
+        video_id = video_info.get('video_id')
+        console.print(f"[blue]Video ID: {video_id}[/blue]")
+        console.print(f"[blue]Title: {video_info.get('title', 'N/A')}[/blue]")
+        console.print(f"[cyan]Total messages: {len(chat_messages)}[/cyan]")
+
+        # 检查是否已存在
+        from ..database.models import ChatMessage
+        with downloader.db_manager.get_session() as session:
+            existing = session.query(ChatMessage).filter_by(video_id=video_id).first()
+            if existing:
+                console.print(f"[yellow]Warning: Video {video_id} already has messages in database[/yellow]")
+                if not click.confirm("Continue importing?", default=False):
+                    console.print("[yellow]Import cancelled[/yellow]")
+                    return
+
+        # 保存到数据库
+        console.print("[cyan]Saving video info to database...[/cyan]")
+        downloader.save_video_to_db(video_info)
+
+        console.print("[cyan]Saving chat messages to database...[/cyan]")
+        downloader.save_chat_messages_to_db(chat_messages)
+
+        console.print(f"[green]✅ Successfully imported {len(chat_messages)} messages for video {video_id}[/green]")
+
+    except json.JSONDecodeError as e:
+        console.print(f"[red]Error: Invalid JSON file - {e}[/red]")
+    except Exception as e:
+        console.print(f"[red]Error importing JSON: {e}[/red]")
 
 
 if __name__ == '__main__':

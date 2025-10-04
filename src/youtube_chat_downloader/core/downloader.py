@@ -24,8 +24,13 @@ console = Console()
 class YouTubeChatDownloader:
     """Main class for downloading YouTube chat data."""
 
-    def __init__(self, db_path: Optional[str] = None, json_output_dir: Optional[str] = None):
-        self.db_manager = DatabaseManager(db_path)
+    def __init__(
+        self,
+        db_path: Optional[str] = None,
+        json_output_dir: Optional[str] = None,
+        db_type: str = "sqlite"
+    ):
+        self.db_manager = DatabaseManager(db_path, db_type=db_type)
         self.chat_downloader = ChatDownloader()
 
         # 设置JSON输出目录
@@ -492,7 +497,8 @@ class YouTubeChatDownloader:
         end_date: Optional[str] = None,
         start_index: int = 0,
         end_index: Optional[int] = None,
-        stop_on_existing: bool = True
+        stop_on_existing: bool = True,
+        save_to_db: bool = False
     ) -> None:
         """Download chat history for an entire channel.
 
@@ -505,6 +511,7 @@ class YouTubeChatDownloader:
             start_index: Start processing from this index in video list
             end_index: Stop processing at this index in video list
             stop_on_existing: Stop downloading when encountering first already-downloaded video (default: True)
+            save_to_db: Whether to save data to database (default: False, only save to JSON)
         """
         console.print(f"[bold green]Starting download for channel: {channel_id}[/bold green]")
 
@@ -600,10 +607,12 @@ class YouTubeChatDownloader:
                     if json_path:
                         console.print(f"[cyan]💾 Saved to JSON: {Path(json_path).name}[/cyan]")
 
-                    # 2. 然后保存到数据库
-                    self.save_video_to_db(video_info)
-                    self.save_chat_messages_to_db(chat_messages)
-                    console.print(f"[green]💬 Saved {len(chat_messages)} messages to database[/green]")
+                    # 2. 如果启用了save_to_db，保存到数据库
+                    if save_to_db:
+                        self.save_video_to_db(video_info)
+                        self.save_chat_messages_to_db(chat_messages)
+                        console.print(f"[green]💬 Saved {len(chat_messages)} messages to database[/green]")
+
                     successful += 1
 
                     # 速率限制
