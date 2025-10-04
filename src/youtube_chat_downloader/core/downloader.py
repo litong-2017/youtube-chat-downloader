@@ -28,10 +28,13 @@ class YouTubeChatDownloader:
         self,
         db_path: Optional[str] = None,
         json_output_dir: Optional[str] = None,
-        db_type: str = "sqlite"
+        db_type: str = "sqlite",
+        cookies_file: Optional[str] = None
     ):
         self.db_manager = DatabaseManager(db_path, db_type=db_type)
-        self.chat_downloader = ChatDownloader()
+        # Initialize ChatDownloader with cookies if provided
+        self.chat_downloader = ChatDownloader(cookies=cookies_file if cookies_file else None)
+        self.cookies_file = cookies_file
 
         # 设置JSON输出目录
         if json_output_dir is None:
@@ -45,13 +48,17 @@ class YouTubeChatDownloader:
     def _get_channel_info(self, channel_id: str) -> Optional[Dict]:
         """Get basic channel information."""
         logger.debug(f"Getting channel info for: {channel_id}")
-        
+
         ydl_opts = {
             'quiet': True,
             'no_warnings': True,
             'extract_flat': True,
             'ignoreerrors': True,
         }
+
+        # Add cookies if provided
+        if self.cookies_file:
+            ydl_opts['cookiefile'] = self.cookies_file
         
         # 清理频道ID
         clean_channel_id = channel_id.strip('@')
@@ -88,13 +95,17 @@ class YouTubeChatDownloader:
     def _search_channel_livestreams(self, channel_id: str) -> List[Dict]:
         """Use search to find livestreams from a channel."""
         logger.debug(f"Searching for livestreams from channel: {channel_id}")
-        
+
         ydl_opts = {
             'quiet': True,
             'no_warnings': True,
             'extract_flat': True,
             'ignoreerrors': True,
         }
+
+        # Add cookies if provided
+        if self.cookies_file:
+            ydl_opts['cookiefile'] = self.cookies_file
         
         # 多种搜索策略
         search_queries = [
@@ -151,7 +162,7 @@ class YouTubeChatDownloader:
     def get_channel_livestreams(self, channel_id: str) -> List[Dict]:
         """Get all livestream videos from a channel."""
         logger.info(f"Getting livestream videos for channel: {channel_id}")
-        
+
         ydl_opts = {
             'quiet': True,
             'no_warnings': True,
@@ -159,6 +170,10 @@ class YouTubeChatDownloader:
             'ignoreerrors': True,
             'playlistend': 100000,  # 限制获取数量
         }
+
+        # Add cookies if provided
+        if self.cookies_file:
+            ydl_opts['cookiefile'] = self.cookies_file
         
         videos = []
         
@@ -243,12 +258,16 @@ class YouTubeChatDownloader:
     def get_video_info(self, video_id: str) -> Optional[Dict]:
         """Get detailed information about a video."""
         logger.debug(f"Getting video info for: {video_id}")
-        
+
         ydl_opts = {
             'quiet': True,
             'no_warnings': True,
             'ignoreerrors': True,
         }
+
+        # Add cookies if provided
+        if self.cookies_file:
+            ydl_opts['cookiefile'] = self.cookies_file
         
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -299,12 +318,12 @@ class YouTubeChatDownloader:
     def download_chat_for_video(self, video_id: str) -> List[Dict]:
         """Download chat data for a single video."""
         logger.info(f"Downloading chat for video: {video_id}")
-        
+
         chat_messages = []
         url = f"https://www.youtube.com/watch?v={video_id}"
-        
+
         try:
-            # 首先检查视频是否有聊天记录
+            # Get chat (cookies already configured in ChatDownloader instance)
             chat = self.chat_downloader.get_chat(url)
             
             message_count = 0

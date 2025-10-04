@@ -63,7 +63,8 @@ python -m youtube_chat_downloader.cli.commands download @channel \
     [--start-date YYYY-MM-DD] \
     [--end-date YYYY-MM-DD] \
     [--start-index N] \
-    [--end-index N]
+    [--end-index N] \
+    [--cookies PATH]
 
 # Import JSON to database
 python -m youtube_chat_downloader.cli.commands import-json FILE.json \
@@ -72,7 +73,8 @@ python -m youtube_chat_downloader.cli.commands import-json FILE.json \
 
 # Validate channel
 python -m youtube_chat_downloader.cli.commands validate @channel \
-    [--db-type sqlite|duckdb]
+    [--db-type sqlite|duckdb] \
+    [--cookies PATH]
 
 # Analyze data
 python -m youtube_chat_downloader.cli.commands analyze \
@@ -244,6 +246,7 @@ When downloading, the code:
 - **No message limit**: Downloads ALL available messages for each video
 - Database path defaults to `data/youtube_chat.db`
 - JSON exports default to `data/json_exports/` directory
+- **Cookies support**: Use `--cookies` to provide authentication cookies in Netscape format to bypass bot detection
 
 ## Key Features Implemented
 

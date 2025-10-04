@@ -4,7 +4,8 @@
       "Bash(ytchat:*)",
       "Bash(source:*)",
       "Bash(python:*)",
-      "Bash(chmod:*)"
+      "Bash(chmod:*)",
+      "WebSearch"
     ],
     "deny": [],
     "ask": []

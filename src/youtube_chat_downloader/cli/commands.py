@@ -30,9 +30,10 @@ def cli():
 @click.option('--start-index', type=int, default=0, help='Start index in video list (0-based)')
 @click.option('--end-index', type=int, help='End index in video list (exclusive)')
 @click.option('--save-to-db/--no-save-to-db', default=False, help='Save to database (default: only save to JSON)')
+@click.option('--cookies', '-c', help='Path to cookies file (Netscape format)')
 def download(channel_id: str, max_videos: int, db_path: str, db_type: str, json_dir: str, search_mode: bool,
              skip_existing: bool, stop_on_existing: bool, start_date: str, end_date: str,
-             start_index: int, end_index: int, save_to_db: bool):
+             start_index: int, end_index: int, save_to_db: bool, cookies: str):
     """Download chat history for a YouTube channel.
 
     Examples:
@@ -45,8 +46,9 @@ def download(channel_id: str, max_videos: int, db_path: str, db_type: str, json_
         ytchat download @channelname --no-skip-existing  # Re-download all videos
         ytchat download @channelname --no-stop-on-existing  # Continue processing all videos instead of stopping
         ytchat download @channelname --json-dir custom/path  # Custom JSON export directory
+        ytchat download @channelname --cookies cookies.txt  # Use cookies for authentication
     """
-    downloader = YouTubeChatDownloader(db_path, json_output_dir=json_dir, db_type=db_type)
+    downloader = YouTubeChatDownloader(db_path, json_output_dir=json_dir, db_type=db_type, cookies_file=cookies)
 
     # 先验证频道是否存在
     console.print(f"[cyan]Validating channel: {channel_id}[/cyan]")
@@ -92,9 +94,10 @@ def download(channel_id: str, max_videos: int, db_path: str, db_type: str, json_
 @cli.command()
 @click.argument('channel_id')
 @click.option('--db-type', type=click.Choice(['sqlite', 'duckdb'], case_sensitive=False), default='sqlite', help='Database type (default: sqlite)')
-def validate(channel_id: str, db_type: str):
+@click.option('--cookies', '-c', help='Path to cookies file (Netscape format)')
+def validate(channel_id: str, db_type: str, cookies: str):
     """Validate if a YouTube channel exists and get its info."""
-    downloader = YouTubeChatDownloader(db_type=db_type)
+    downloader = YouTubeChatDownloader(db_type=db_type, cookies_file=cookies)
     
     console.print(f"[cyan]Validating channel: {channel_id}[/cyan]")
     channel_info = downloader._get_channel_info(channel_id.strip('@'))
